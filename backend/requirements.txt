@@ -1,0 +1,11 @@
+# FastAPI - Python web framework used to build our backend APIs
+fastapi 
+
+# Uvicorn - ASGI server used to run the FastAPI application
+uvicorn 
+
+# Google GenAI - Official Google Gemini SDK for calling Gemini models
+google-genai 
+
+# python-dotenv - Loads environment variables from the .env file
+python-dotenv
