@@ -8,6 +8,12 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 from google import genai
+from database import Base, engine
+from models import Conversation, Message
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from database import SessionLocal
+from datetime import datetime
 
 
 # --------------------------------
@@ -34,6 +40,7 @@ client = genai.Client(api_key=api_key)
 # --------------------------------
 
 app = FastAPI()
+Base.metadata.create_all(bind=engine)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -41,12 +48,83 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+#-------------------------------
+# 4. Dependency to get DB session
+#-------------------------------
 
-# --------------------------------
-# 4. Temporary conversation history
-# --------------------------------
+def get_db():
+    db = SessionLocal()
 
-conversation_history = []
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@app.post("/conversations")
+def create_conversation(db: Session = Depends(get_db)):
+    conversation = Conversation(
+        title="New Conversation"
+    )
+
+    db.add(conversation)
+    db.commit()
+    db.refresh(conversation)
+
+    return {
+        "id": conversation.id,
+        "title": conversation.title
+    }
+@app.get("/conversations/{conversation_id}")
+def get_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db)
+):
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id
+    ).first()
+
+    if not conversation:
+        return {
+            "error": "Conversation not found"
+        }
+
+    messages = db.query(Message).filter(
+        Message.conversation_id == conversation_id
+    ).order_by(Message.created_at).all()
+
+    return {
+        "id": conversation.id,
+        "title": conversation.title,
+        "messages": [
+            {
+                "id": message.id,
+                "role": message.role,
+                "content": message.content
+            }
+            for message in messages
+        ]
+    }
+@app.delete("/conversations/{conversation_id}")
+def delete_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db)
+):
+    conversation = db.query(Conversation).filter(
+        Conversation.id == conversation_id
+    ).first()
+
+    if not conversation:
+        return {
+            "error": "Conversation not found"
+        }
+
+    db.delete(conversation)
+    db.commit()
+
+    return {
+        "message": "Conversation deleted"
+    }
 
 
 # --------------------------------
@@ -55,6 +133,7 @@ conversation_history = []
 
 class ChatRequest(BaseModel):
     message: str
+    conversation_id: int
 class StudyResponse(BaseModel):
     topic: str
     difficulty: str
@@ -117,7 +196,7 @@ Requirements:
 """
 
     response = client.models.generate_content(
-        model="gemini-3.5-flash-lite",
+        model="gemini-3.5-flash",
         config={
             "system_instruction": """
 You are AI Study Copilot, an AI assistant designed to help students learn.
@@ -146,18 +225,37 @@ Your goals:
 
     return ai_response
 @app.post("/chat/stream")
-def chat_stream(request: ChatRequest):
+def chat_stream(
+    request: ChatRequest,
+    db: Session = Depends(get_db)
+):
+    conversation = db.query(Conversation).filter(
+        Conversation.id == request.conversation_id
+    ).first()
 
-    conversation_history.append({
-        "role": "user",
-        "content": request.message
-    })
+    if not conversation:
+        return {
+            "error": "Conversation not found"
+        }
+
+    user_message = Message(
+        conversation_id=request.conversation_id,
+        role="user",
+        content=request.message
+    )
+
+    db.add(user_message)
+    db.commit()
+
+    previous_messages = db.query(Message).filter(
+        Message.conversation_id == request.conversation_id
+    ).order_by(Message.created_at).all()
 
     conversation_text = ""
 
-    for message in conversation_history:
+    for message in previous_messages:
         conversation_text += (
-            f"{message['role']}: {message['content']}\n"
+            f"{message.role}: {message.content}\n"
         )
 
     prompt = f"""
@@ -181,7 +279,7 @@ Requirements:
 
         try:
             response = client.models.generate_content_stream(
-                model="gemini-3.6-flash",
+                model="gemini-3.5-flash",
                 config={
                     "system_instruction": """
 You are AI Study Copilot, an AI assistant designed to help students learn.
@@ -203,13 +301,23 @@ Your goals:
                     full_response += chunk.text
                     yield chunk.text
 
-            conversation_history.append({
-                "role": "assistant",
-                "content": full_response
-            })
+            assistant_message = Message(
+                conversation_id=request.conversation_id,
+                role="assistant",
+                content=full_response
+            )
+
+            db.add(assistant_message)
+
+            conversation.updated_at = datetime.utcnow()
+
+            db.commit()
 
         except Exception as error:
             print("Gemini error:", error)
+
+            db.rollback()
+
             yield "\n\nSorry, I couldn't generate a response right now."
 
     return StreamingResponse(
