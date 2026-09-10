@@ -6,13 +6,18 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+ const [conversationId, setConversationId] = useState(() => {
+  const savedId = localStorage.getItem("conversationId");
+
+  return savedId ? Number(savedId) : null;
+});
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   async function sendMessage() {
-    if (!message.trim() || loading) {
+    if (!message.trim() || loading || !conversationId) {
       return;
     }
 
@@ -41,6 +46,7 @@ function App() {
           },
           body: JSON.stringify({
             message: currentMessage,
+            conversation_id: conversationId,
           }),
         }
       );
@@ -111,21 +117,83 @@ function App() {
       sendMessage();
     }
   }
+  async function createConversation() {
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:8000/conversations",
+      {
+        method: "POST",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to create conversation");
+    }
+
+    const data = await response.json();
+
+    setConversationId(data.id);
+    localStorage.setItem("conversationId", data.id);
+  } catch (error) {
+    console.error("Error creating conversation:", error);
+  }
+}
+useEffect(() => {
+  async function initializeConversation() {
+    const savedId = localStorage.getItem("conversationId");
+
+    if (savedId) {
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8000/conversations/${savedId}`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+
+          setConversationId(data.id);
+          setMessages(data.messages);
+
+          return;
+        }
+      } catch (error) {
+        console.error("Error loading conversation:", error);
+      }
+    }
+
+    await createConversation();
+  }
+
+  initializeConversation();
+}, []);
   async function clearConversation() {
   const confirmed = window.confirm(
     "Are you sure you want to clear this conversation?"
   );
 
-  if (!confirmed) {
+  if (!confirmed || !conversationId) {
     return;
   }
 
   try {
-    await fetch("http://127.0.0.1:8000/chat", {
-      method: "DELETE",
-    });
+    const response = await fetch(
+      `http://127.0.0.1:8000/conversations/${conversationId}`,
+      {
+        method: "DELETE",
+      }
+    );
 
+    if (!response.ok) {
+      throw new Error("Failed to delete conversation");
+    }
+
+    localStorage.removeItem("conversationId");
+
+    setConversationId(null);
     setMessages([]);
+
+    await createConversation();
+
   } catch (error) {
     console.error("Error clearing conversation:", error);
   }
