@@ -1,19 +1,26 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 function App() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   async function sendMessage() {
-    if (!message.trim()) {
+    if (!message.trim() || loading) {
       return;
     }
 
+    const currentMessage = message;
+
     const userMessage = {
       role: "user",
-      content: message,
+      content: currentMessage,
     };
 
     setMessages((previousMessages) => [
@@ -25,40 +32,75 @@ function App() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        "http://127.0.0.1:8000/chat/stream",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: currentMessage,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Server returned ${response.status}`
+        );
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      let assistantText = "";
+
+      setMessages((previousMessages) => [
+        ...previousMessages,
+        {
+          role: "assistant",
+          content: "",
         },
-        body: JSON.stringify({
-          message: message,
-        }),
-      });
-
-      const data = await response.json();
-
-      const aiMessage = {
-        role: "assistant",
-        content: data,
-      };
-
-      setMessages((previousMessages) => [
-        ...previousMessages,
-        aiMessage,
       ]);
+
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        const chunk = decoder.decode(value, {
+          stream: true,
+        });
+
+        assistantText += chunk;
+
+        setMessages((previousMessages) => {
+          const updatedMessages = [...previousMessages];
+
+          updatedMessages[updatedMessages.length - 1] = {
+            role: "assistant",
+            content: assistantText,
+          };
+
+          return updatedMessages;
+        });
+      }
+
     } catch (error) {
-      console.error("Error:", error);
+        console.error("Error:", error);
 
-      const errorMessage = {
-        role: "assistant",
-        content: "Something went wrong. Please try again.",
-      };
-
-      setMessages((previousMessages) => [
-        ...previousMessages,
-        errorMessage,
-      ]);
-    }
+        setMessages((previousMessages) => [
+          ...previousMessages,
+          {
+            role: "assistant",
+            content:
+              "I couldn't connect to the AI service. Please check that the backend is running and try again.",
+          },
+        ]);
+      }
 
     setLoading(false);
   }
@@ -70,6 +112,14 @@ function App() {
     }
   }
   async function clearConversation() {
+  const confirmed = window.confirm(
+    "Are you sure you want to clear this conversation?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
   try {
     await fetch("http://127.0.0.1:8000/chat", {
       method: "DELETE",
@@ -123,43 +173,11 @@ function App() {
               </div>
 
               <div className="message-content">
-                {msg.role === "user" ? (
-                  msg.content
-                ) : (
-                  <>
-                    <h3>{msg.content.topic}</h3>
-
-                    <p>
-                      <strong>Difficulty:</strong>{" "}
-                      {msg.content.difficulty}
-                    </p>
-
-                    <p>{msg.content.explanation}</p>
-
-                    <strong>Key Points:</strong>
-
-                    <ul>
-                      {msg.content.key_points.map((point, pointIndex) => (
-                        <li key={pointIndex}>{point}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
+                {msg.content}
               </div>
             </div>
           ))}
-
-          {loading && (
-            <div className="message assistant">
-              <div className="message-role">AI</div>
-              <div className="message-content typing">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
-          )}
-
+          <div ref={messagesEndRef} />
         </main>
 
         <div className="input-area">
@@ -170,13 +188,14 @@ function App() {
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleKeyDown}
             rows="1"
+            disabled={loading}
           />
 
           <button
             onClick={sendMessage}
-            disabled={loading}
+            disabled={loading || !message.trim()}
           >
-            Send
+            {loading ? "Thinking..." : "Send"}
           </button>
 
         </div>

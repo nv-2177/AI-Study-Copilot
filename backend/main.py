@@ -1,5 +1,7 @@
 import os
 import json
+import time
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -115,7 +117,7 @@ Requirements:
 """
 
     response = client.models.generate_content(
-        model="gemini-3.6-flash",
+        model="gemini-3.5-flash-lite",
         config={
             "system_instruction": """
 You are AI Study Copilot, an AI assistant designed to help students learn.
@@ -143,3 +145,74 @@ Your goals:
     })
 
     return ai_response
+@app.post("/chat/stream")
+def chat_stream(request: ChatRequest):
+
+    conversation_history.append({
+        "role": "user",
+        "content": request.message
+    })
+
+    conversation_text = ""
+
+    for message in conversation_history:
+        conversation_text += (
+            f"{message['role']}: {message['content']}\n"
+        )
+
+    prompt = f"""
+The following is the conversation between the student and AI Study Copilot.
+
+Conversation:
+{conversation_text}
+
+Answer the student's latest question.
+
+Requirements:
+- Explain clearly.
+- Start with intuition when appropriate.
+- Give examples when useful.
+- Keep the answer suitable for a learner.
+- Respond as natural text.
+"""
+
+    def generate():
+        full_response = ""
+
+        try:
+            response = client.models.generate_content_stream(
+                model="gemini-3.6-flash",
+                config={
+                    "system_instruction": """
+You are AI Study Copilot, an AI assistant designed to help students learn.
+
+Your goals:
+- Explain concepts clearly and simply.
+- Start with intuition before technical details.
+- Use examples when useful.
+- If the user asks about programming, explain the idea before giving code.
+- Do not unnecessarily make answers complicated.
+- If the user seems confused, simplify the explanation.
+"""
+                },
+                contents=prompt
+            )
+
+            for chunk in response:
+                if chunk.text:
+                    full_response += chunk.text
+                    yield chunk.text
+
+            conversation_history.append({
+                "role": "assistant",
+                "content": full_response
+            })
+
+        except Exception as error:
+            print("Gemini error:", error)
+            yield "\n\nSorry, I couldn't generate a response right now."
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/plain"
+    )
