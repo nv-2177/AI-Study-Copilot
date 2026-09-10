@@ -73,7 +73,13 @@ def home():
 # --------------------------------
 # 7. Chat endpoint
 # --------------------------------
+@app.delete("/chat")
+def clear_chat():
+    conversation_history.clear()
 
+    return {
+        "message": "Conversation cleared"
+    }
 @app.post("/chat")
 def chat(request: ChatRequest):
     conversation_history.append({

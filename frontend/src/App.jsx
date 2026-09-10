@@ -69,6 +69,17 @@ function App() {
       sendMessage();
     }
   }
+  async function clearConversation() {
+  try {
+    await fetch("http://127.0.0.1:8000/chat", {
+      method: "DELETE",
+    });
+
+    setMessages([]);
+  } catch (error) {
+    console.error("Error clearing conversation:", error);
+  }
+}
 
   return (
     <div className="app">
@@ -76,8 +87,18 @@ function App() {
       <div className="chat-container">
 
         <header className="header">
-          <h1>AI Study Copilot</h1>
-          <p>Your AI learning assistant</p>
+          <div>
+            <h1>AI Study Copilot</h1>
+            <p>Your AI learning assistant</p>
+          </div>
+
+          <button
+            className="clear-button"
+            onClick={clearConversation}
+            disabled={messages.length === 0}
+          >
+            Clear Chat
+          </button>
         </header>
 
         <main className="messages">
