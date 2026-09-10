@@ -70,36 +70,55 @@ def home():
 
 @app.post("/chat")
 def chat(request: ChatRequest):
-
-    # Add user's message to history
     conversation_history.append({
         "role": "user",
         "content": request.message
     })
 
-    # Create conversation text for Gemini
     conversation_text = ""
-
     for message in conversation_history:
         conversation_text += (
             f"{message['role']}: {message['content']}\n"
         )
 
-    # Send conversation to Gemini
+    prompt = f"""
+The following is the conversation between the student and AI Study Copilot.
+
+Conversation:
+{conversation_text}
+
+Now answer the student's latest question.
+
+Requirements:
+- Explain clearly.
+- Start with intuition when appropriate.
+- Give examples when useful.
+- Keep the answer suitable for a learner.
+"""
+
     response = client.models.generate_content(
         model="gemini-3.6-flash",
-        contents=conversation_text
+        config={
+            "system_instruction": """
+You are AI Study Copilot, an AI assistant designed to help students learn.
+
+Your goals:
+- Explain concepts clearly and simply.
+- Start with intuition before technical details.
+- Use examples when useful.
+- If the user asks about programming, explain the idea before giving code.
+- Do not unnecessarily make answers complicated.
+- If the user seems confused, simplify the explanation.
+"""
+        },
+        contents=prompt
     )
 
-    # Get AI response
     ai_response = response.text
 
-    # Add AI response to history
     conversation_history.append({
         "role": "assistant",
         "content": ai_response
     })
 
-    return {
-        "response": ai_response
-    }
+    return {"response": ai_response}
