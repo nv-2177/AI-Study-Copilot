@@ -92,12 +92,16 @@ body {
   border-top: 1px solid #ddd;
 }
 
-.input-area input {
+.input-area textarea {
   flex: 1;
   padding: 12px;
   font-size: 16px;
   border: 1px solid #ccc;
   border-radius: 8px;
+}
+.input-area textarea {
+  resize: none;
+  font-family: inherit;
 }
 
 .input-area button {

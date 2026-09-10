@@ -64,7 +64,8 @@ function App() {
   }
 
   function handleKeyDown(event) {
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
       sendMessage();
     }
   }
@@ -142,12 +143,12 @@ function App() {
 
         <div className="input-area">
 
-          <input
-            type="text"
+          <textarea
             placeholder="Ask something..."
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleKeyDown}
+            rows="1"
           />
 
           <button
