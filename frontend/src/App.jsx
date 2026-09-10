@@ -130,8 +130,10 @@ function App() {
           {loading && (
             <div className="message assistant">
               <div className="message-role">AI</div>
-              <div className="message-content">
-                Thinking...
+              <div className="message-content typing">
+                <span></span>
+                <span></span>
+                <span></span>
               </div>
             </div>
           )}
