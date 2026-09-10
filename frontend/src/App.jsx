@@ -39,7 +39,7 @@ function App() {
 
       const aiMessage = {
         role: "assistant",
-        content: data.response,
+        content: data,
       };
 
       setMessages((previousMessages) => [
@@ -101,7 +101,28 @@ function App() {
               </div>
 
               <div className="message-content">
-                {msg.content}
+                {msg.role === "user" ? (
+                  msg.content
+                ) : (
+                  <>
+                    <h3>{msg.content.topic}</h3>
+
+                    <p>
+                      <strong>Difficulty:</strong>{" "}
+                      {msg.content.difficulty}
+                    </p>
+
+                    <p>{msg.content.explanation}</p>
+
+                    <strong>Key Points:</strong>
+
+                    <ul>
+                      {msg.content.key_points.map((point, pointIndex) => (
+                        <li key={pointIndex}>{point}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </div>
             </div>
           ))}

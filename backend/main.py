@@ -1,8 +1,10 @@
 import os
+import json
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import List
 from google import genai
 
 
@@ -51,7 +53,11 @@ conversation_history = []
 
 class ChatRequest(BaseModel):
     message: str
-
+class StudyResponse(BaseModel):
+    topic: str
+    difficulty: str
+    explanation: str
+    key_points: List[str]
 
 # --------------------------------
 # 6. Home endpoint
@@ -87,7 +93,13 @@ The following is the conversation between the student and AI Study Copilot.
 Conversation:
 {conversation_text}
 
-Now answer the student's latest question.
+Answer the student's latest question.
+
+Return:
+- topic: the main topic being discussed
+- difficulty: beginner, intermediate, or advanced
+- explanation: a clear explanation suitable for the student
+- key_points: 3 to 5 important points
 
 Requirements:
 - Explain clearly.
@@ -109,16 +121,19 @@ Your goals:
 - If the user asks about programming, explain the idea before giving code.
 - Do not unnecessarily make answers complicated.
 - If the user seems confused, simplify the explanation.
-"""
+""",
+            "response_mime_type": "application/json",
+            "response_schema": StudyResponse,
         },
         contents=prompt
     )
 
-    ai_response = response.text
+    ai_response = json.loads(response.text)
+
 
     conversation_history.append({
         "role": "assistant",
-        "content": ai_response
+        "content": json.dumps(ai_response)
     })
 
-    return {"response": ai_response}
+    return ai_response
