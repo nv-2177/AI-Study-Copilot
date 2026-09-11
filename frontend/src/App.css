@@ -384,3 +384,59 @@ textarea {
 .delete-conversation:hover {
   color: #dc2626;
 }
+.document-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: white;
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #0f172a;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.upload-button:hover {
+  opacity: 0.9;
+}
+
+.document-bar select {
+  max-width: 300px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  color: #334155;
+}
+
+@media (max-width: 700px) {
+  .document-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .document-bar select {
+    max-width: none;
+  }
+}
+.delete-document-button {
+  padding: 8px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: white;
+  color: #dc2626;
+  cursor: pointer;
+}
+
+.delete-document-button:hover {
+  background: #fef2f2;
+}
