@@ -9,11 +9,20 @@ from pydantic import BaseModel
 from typing import List
 from google import genai
 from database import Base, engine
-from models import Conversation, Message
+from models import Conversation, Message, Document
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from datetime import datetime
+from pathlib import Path
+from fastapi import File, UploadFile
+from pypdf import PdfReader
+
+#--------------------------------
+#upload folder path
+#--------------------------------
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 # --------------------------------
@@ -135,6 +144,7 @@ def delete_conversation(
 class ChatRequest(BaseModel):
     message: str
     conversation_id: int
+    document_id: int | None = None
 class StudyResponse(BaseModel):
     topic: str
     difficulty: str
@@ -238,7 +248,16 @@ def chat_stream(
         return {
             "error": "Conversation not found"
         }
+    document = None
+    if request.document_id is not None:
+        document = db.query(Document).filter(
+            Document.id == request.document_id
+        ).first()
 
+        if not document:
+            return {
+                "error": "Document not found"
+            }
     user_message = Message(
         conversation_id=request.conversation_id,
         role="user",
@@ -260,21 +279,42 @@ def chat_stream(
             f"{message.role}: {message.content}\n"
         )
 
+    document_context = ""
+
+    if document:
+        document_context = f"""
+    The student has uploaded the following document.
+
+    Document:
+    {document.filename}
+
+    Document content:
+    {document.content}
+
+    Use this document as the primary source when answering the student's question.
+    If the answer is not available in the document, clearly say that the document does not contain enough information.
+    Do not invent information from the document.
+    """
+
     prompt = f"""
-The following is the conversation between the student and AI Study Copilot.
+    The following is the conversation between the student and AI Study Copilot.
 
-Conversation:
-{conversation_text}
+    Conversation:
+    {conversation_text}
 
-Answer the student's latest question.
+    {document_context}
 
-Requirements:
-- Explain clearly.
-- Start with intuition when appropriate.
-- Give examples when useful.
-- Keep the answer suitable for a learner.
-- Respond as natural text.
-"""
+    Answer the student's latest question.
+
+    Requirements:
+    - Explain clearly.
+    - Start with intuition when appropriate.
+    - Give examples when useful.
+    - Keep the answer suitable for a learner.
+    - When a document is provided, ground the answer in that document.
+    - Do not invent information that is not supported by the document.
+    - Respond as natural text.
+    """
 
     def generate():
         full_response = ""
@@ -343,3 +383,110 @@ def get_conversations(
         }
         for conversation in conversations
     ]
+@app.post("/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    if not file.filename:
+        return {"error": "No file provided"}
+
+    if not file.filename.lower().endswith(".pdf"):
+        return {"error": "Only PDF files are supported"}
+
+    file_path = UPLOAD_DIR / file.filename
+
+    contents = await file.read()
+
+    with open(file_path, "wb") as output_file:
+        output_file.write(contents)
+
+    reader = PdfReader(file_path)
+
+    text = ""
+
+    for page in reader.pages:
+        page_text = page.extract_text()
+
+        if page_text:
+            text += page_text + "\n"
+
+    document = Document(
+        filename=file.filename,
+        file_path=str(file_path),
+        content=text
+    )
+
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    return {
+        "id": document.id,
+        "filename": document.filename,
+        "pages": len(reader.pages),
+        "text_length": len(text),
+        "preview": text[:1000]
+    }
+@app.get("/documents")
+def get_documents(
+    db: Session = Depends(get_db)
+):
+    documents = db.query(Document).order_by(
+        Document.created_at.desc()
+    ).all()
+
+    return [
+        {
+            "id": document.id,
+            "filename": document.filename,
+            "created_at": document.created_at
+        }
+        for document in documents
+    ]
+@app.get("/documents/{document_id}")
+def get_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    document = db.query(Document).filter(
+        Document.id == document_id
+    ).first()
+
+    if not document:
+        return {
+            "error": "Document not found"
+        }
+
+    return {
+        "id": document.id,
+        "filename": document.filename,
+        "content": document.content,
+        "created_at": document.created_at
+    }
+@app.delete("/documents/{document_id}")
+def delete_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    document = db.query(Document).filter(
+        Document.id == document_id
+    ).first()
+
+    if not document:
+        return {
+            "error": "Document not found"
+        }
+
+    file_path = Path(document.file_path)
+
+    if file_path.exists():
+        file_path.unlink()
+
+    db.delete(document)
+    db.commit()
+
+    return {
+        "message": "Document deleted",
+        "document_id": document_id
+    }
