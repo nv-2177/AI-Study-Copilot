@@ -123,7 +123,8 @@ def delete_conversation(
     db.commit()
 
     return {
-        "message": "Conversation deleted"
+        "message": "Conversation deleted",
+        "conversation_id": conversation_id
     }
 
 
@@ -243,8 +244,9 @@ def chat_stream(
         role="user",
         content=request.message
     )
-
     db.add(user_message)
+    if conversation.title == "New Conversation":
+        conversation.title = request.message[:50]
     db.commit()
 
     previous_messages = db.query(Message).filter(
@@ -324,3 +326,20 @@ Your goals:
         generate(),
         media_type="text/plain"
     )
+@app.get("/conversations")
+def get_conversations(
+    db: Session = Depends(get_db)
+):
+    conversations = db.query(Conversation).order_by(
+        Conversation.updated_at.desc()
+    ).all()
+
+    return [
+        {
+            "id": conversation.id,
+            "title": conversation.title,
+            "created_at": conversation.created_at,
+            "updated_at": conversation.updated_at
+        }
+        for conversation in conversations
+    ]

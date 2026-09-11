@@ -24,7 +24,6 @@ textarea {
 }
 
 .chat-container {
-  width: 100%;
   max-width: 1000px;
   height: 90vh;
   background: #ffffff;
@@ -276,4 +275,112 @@ textarea {
   .message {
     max-width: 90%;
   }
+}
+.app {
+  display: flex !important;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.sidebar {
+  flex: 0 0 260px;
+  width: 260px;
+  height: 100vh;
+  box-sizing: border-box;
+  overflow-y: auto;
+
+  background: white;
+  border-right: 1px solid #e2e8f0;
+  padding: 20px;
+}
+
+.chat-container {
+  flex: 1;
+  min-width: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.sidebar-header h2 {
+  margin: 0;
+}
+
+.conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.conversation-item {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.conversation-item:hover {
+  background: #f1f5f9;
+}
+
+.conversation-item.active {
+  background: #e2e8f0;
+  font-weight: 600;
+}
+.conversation-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.conversation-title {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-item:hover {
+  background: #f1f5f9;
+}
+
+.conversation-item.active {
+  background: #e2e8f0;
+}
+
+.conversation-item.active .conversation-title {
+  font-weight: 600;
+}
+
+.delete-conversation {
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 18px;
+}
+
+.delete-conversation:hover {
+  color: #dc2626;
 }
